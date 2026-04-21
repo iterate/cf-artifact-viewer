@@ -19,7 +19,12 @@ Browse, edit, and manage [Cloudflare Artifacts](https://developers.cloudflare.co
 
 Click the button above to deploy to your own Cloudflare account. You need the [Artifacts private beta](https://developers.cloudflare.com/artifacts/) enabled.
 
-After deploying, set `CF_ACCOUNT_ID` in your Worker's environment variables to your Cloudflare account ID.
+After deploying, set your account ID (the Artifacts binding doesn't expose the git remote URL via RPC in server functions):
+
+```bash
+npx wrangler secret put CF_ACCOUNT_ID
+# paste your Cloudflare account ID
+```
 
 ## Local development
 

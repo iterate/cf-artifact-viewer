@@ -1,19 +1,25 @@
 /// <reference types="vite/client" />
 import { createRootRoute, HeadContent, Link, Outlet, Scripts, useRouter, useRouterState } from "@tanstack/react-router";
-import * as React from "react";
-import { useState, useEffect } from "react";
+import type { ReactNode } from "react";
+import { useState } from "react";
 import { listRepos, createRepo } from "~/functions/git";
 
 export const Route = createRootRoute({
+  ssr: false,
+  loader: async () => {
+    const data = await listRepos();
+    return { repos: (data?.repos ?? []) as { name: string }[] };
+  },
   head: () => ({
     meta: [{ charSet: "utf-8" }, { name: "viewport", content: "width=device-width, initial-scale=1" }, { title: "Artifacts" }],
+    // Tailwind v4 play CDN — runtime JIT, fine for internal tools
     scripts: [{ src: "https://cdn.tailwindcss.com?plugins=" }],
   }),
   shellComponent: RootShell,
   component: RootLayout,
 });
 
-function RootShell({ children }: { children: React.ReactNode }) {
+function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <head><HeadContent /><style dangerouslySetInnerHTML={{ __html: "body{margin:0}" }} /></head>
@@ -23,8 +29,7 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootLayout() {
-  const [repos, setRepos] = useState<{ name: string }[]>([]);
-  useEffect(() => { listRepos().then((d) => setRepos(d?.repos ?? [])).catch(() => {}); }, []);
+  const { repos } = Route.useLoaderData();
   const [newName, setNewName] = useState("");
   const router = useRouter();
   const isLoading = useRouterState({ select: (s) => s.isLoading });
@@ -34,8 +39,7 @@ function RootLayout() {
     const name = newName.trim();
     await createRepo({ data: { name } });
     setNewName("");
-    const updated = await listRepos();
-    setRepos(updated?.repos ?? []);
+    await router.invalidate();
     router.navigate({ to: "/$artifact", params: { artifact: name }, search: {} });
   }
 

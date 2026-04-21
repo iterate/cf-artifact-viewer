@@ -4,3 +4,5 @@ node_modules
 .env
 dist
 .wrangler
+worker-configuration.d.ts
+src/routeTree.gen.ts

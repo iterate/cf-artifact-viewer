@@ -1,7 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState, useEffect, useMemo } from "react";
 import CodeMirror from "@uiw/react-codemirror";
-import { EditorView } from "@codemirror/view";
 import { LanguageDescription } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
 import { getTree, getLog, getBlob, commitChanges, restoreCommit } from "~/functions/git";
@@ -14,15 +13,11 @@ export const Route = createFileRoute("/$artifact")({
   }),
   loaderDeps: ({ search }) => ({ commit: search.commit }),
   loader: async ({ params, deps }) => {
-    try {
-      const [commits, tree] = await Promise.all([
-        getLog({ data: { repo: params.artifact } }),
-        getTree({ data: { repo: params.artifact, oid: deps.commit } }),
-      ]);
-      return { commits: commits ?? [], tree: tree ?? [] };
-    } catch {
-      return { commits: [], tree: [] };
-    }
+    const [commits, tree] = await Promise.all([
+      getLog({ data: { repo: params.artifact } }),
+      getTree({ data: { repo: params.artifact, oid: deps.commit } }),
+    ]);
+    return { commits: commits ?? [], tree: tree ?? [] };
   },
   pendingComponent: () => <div className="flex-1 flex items-center justify-center text-[#8b949e]">Loading repository...</div>,
   errorComponent: ({ error }) => <div className="flex-1 flex items-center justify-center text-red-400">Failed to load: {error.message}</div>,
@@ -47,18 +42,23 @@ function ArtifactView() {
   const [busy, setBusy] = useState("");
   const [langExt, setLangExt] = useState<import("@codemirror/state").Extension[]>([]);
 
-  const treeNodes = buildTree(tree);
   const [expanded, setExpanded] = useState<Set<string>>(() => expandToFile(file));
   useEffect(() => { if (file) setExpanded((prev) => new Set([...prev, ...expandToFile(file)])); }, [file]);
-  const dirty = new Set(Object.keys(working).filter((p) => working[p] !== head[p]));
+  const dirty = useMemo(() => new Set(Object.keys(working).filter((p) => working[p] !== head[p])), [working, head]);
+  const allPaths = useMemo(() => [...tree, ...Object.keys(working).filter((k) => !tree.includes(k))], [tree, working]);
+  const treeNodes = useMemo(() => buildTree(allPaths), [allPaths]);
   const hasLocalChanges = isHead && dirty.size > 0;
   const isNewFile = !!file && file in working && !(file in head);
   const fileLoading = !!file && !isNewFile && fileContent === undefined && !(file in head);
 
   // Reset on artifact change
   useEffect(() => { setHead({}); setWorking(JSON.parse(localStorage.getItem(`art:${artifact}:working`) || "{}")); setFileContent(undefined); }, [artifact]);
-  // Persist working edits
-  useEffect(() => { if (isHead) localStorage.setItem(`art:${artifact}:working`, JSON.stringify(working)); }, [artifact, working, isHead]);
+  // Persist working edits (debounced to avoid serializing on every keystroke)
+  useEffect(() => {
+    if (!isHead) return;
+    const timer = setTimeout(() => localStorage.setItem(`art:${artifact}:working`, JSON.stringify(working)), 500);
+    return () => clearTimeout(timer);
+  }, [artifact, working, isHead]);
 
   // Load file content via server function (skip for locally-created files)
   useEffect(() => {
@@ -75,13 +75,15 @@ function ArtifactView() {
 
   // https://codemirror.net/docs/ref/#language-data
   useEffect(() => {
-    if (!file) return setLangExt([]);
+    if (!file) { setLangExt([]); return; }
     const desc = LanguageDescription.matchFilename(languages, file);
-    if (!desc) return setLangExt([]);
-    desc.load().then((lang) => setLangExt([lang]));
+    if (!desc) { setLangExt([]); return; }
+    let cancelled = false;
+    desc.load().then((lang) => { if (!cancelled) setLangExt([lang]); });
+    return () => { cancelled = true; };
   }, [file]);
 
-  const extensions = useMemo(() => { const exts = [...langExt]; if (!isHead) exts.push(EditorView.editable.of(false)); return exts; }, [isHead, langExt]);
+  const extensions = useMemo(() => [...langExt], [langExt]);
   const editorValue = isHead && file && working[file] !== undefined ? working[file] : fileContent;
 
   async function resetAndReload() {
@@ -113,7 +115,6 @@ function ArtifactView() {
               const name = prompt("File path (e.g. src/index.ts):");
               if (!name?.trim()) return;
               setWorking((w) => ({ ...w, [name.trim()]: "" }));
-              setHead((h) => ({ ...h })); // trigger dirty detection
               navigate({ search: { file: name.trim() } });
             }}>📄+</button>
             <button className="text-[#8b949e] hover:text-blue-400 text-xs cursor-pointer" title="New folder" onClick={() => {
@@ -126,7 +127,7 @@ function ArtifactView() {
             }}>📁+</button>
           </div>}
         </div>
-        <FileTree nodes={buildTree([...tree, ...Object.keys(working).filter((k) => !tree.includes(k))])} depth={0} selected={file} dirty={isHead ? dirty : undefined} expanded={expanded}
+        <FileTree nodes={treeNodes} depth={0} selected={file} dirty={isHead ? dirty : undefined} expanded={expanded}
           onSelect={(path) => navigate({ search: { commit: selectedCommit, file: path } })}
           onToggle={(path) => setExpanded((prev) => { const next = new Set(prev); next.has(path) ? next.delete(path) : next.add(path); return next; })} />
       </div>
@@ -138,7 +139,7 @@ function ArtifactView() {
         </div>
         <div className="flex-1 overflow-auto">
           {fileLoading ? <div className="p-10 text-[#8b949e]">Loading file...</div>
-          : file && editorValue !== undefined ? <CodeMirror key={file} value={editorValue} height="100%" theme="dark" extensions={extensions} readOnly={!isHead} onChange={isHead ? (val) => setWorking((w) => ({ ...w, [file]: val })) : undefined} />
+          : file && editorValue !== undefined ? <CodeMirror key={file} value={editorValue} height="100%" theme="dark" extensions={extensions} readOnly={!isHead} editable={isHead} onChange={isHead ? (val) => setWorking((w) => ({ ...w, [file]: val })) : undefined} />
           : <div className="p-10 text-[#8b949e]">{file ? "File not found" : "Select a file"}</div>}
         </div>
       </div>
@@ -161,7 +162,7 @@ function ArtifactView() {
             }}>✕</button>
           </div>
         </div>}
-        {commits.map((c: { oid: string; message: string; author: string; timestamp: number }, i: number) => {
+        {commits.map((c, i) => {
           const isLatest = i === 0;
           const isActive = selectedCommit === c.oid || (isHead && i === 0 && !hasLocalChanges);
           return <div key={c.oid} className={`px-3 py-2 border-b border-[#21262d] ${isActive ? "bg-[#161b22]" : ""}`}>
