@@ -1,10 +1,5 @@
 /**
  * Server functions for git operations on Cloudflare Artifacts repos.
- *
- * Requires CF_ACCOUNT_ID env var — the Artifacts binding doesn't expose the
- * git remote URL on get(), only on create(). We need the account ID to
- * construct: https://<account>.artifacts.cloudflare.net/git/<ns>/<name>.git
- *
  * https://tanstack.com/start/latest/docs/framework/react/server-functions
  */
 import { createServerFn } from "@tanstack/react-start";
@@ -90,9 +85,6 @@ type RepoCtx = { fs: MemoryFS; dir: string; token: string; git: { fs: any; dir: 
 const repoCache = new Map<string, Promise<RepoCtx>>();
 const fetchedDepth = new Map<string, number>();
 
-function remoteUrl(name: string) {
-  return `https://${(env as any).CF_ACCOUNT_ID}.artifacts.cloudflare.net/git/default/${name}.git`;
-}
 
 async function ensureRepo(name: string, depth = 1) {
   if (!repoCache.has(name)) repoCache.set(name, initRepo(name));
@@ -106,7 +98,9 @@ async function ensureRepo(name: string, depth = 1) {
 
 async function initRepo(name: string): Promise<RepoCtx> {
   const repo = await artifacts().get(name);
-  const remote = remoteUrl(name);
+  // repo.remote is an RPC property — must be awaited to resolve the actual URL
+  // https://developers.cloudflare.com/artifacts/api/workers-binding/
+  const remote = await repo.remote;
   const token = (await repo.createToken("write", 3600)).plaintext.split("?")[0];
   const fs = new MemoryFS();
   const dir = `/${name}`;
