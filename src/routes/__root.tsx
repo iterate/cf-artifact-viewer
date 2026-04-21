@@ -36,7 +36,7 @@ function RootLayout() {
     setNewName("");
     const updated = await listRepos();
     setRepos(updated?.repos ?? []);
-    router.navigate({ to: "/$artifact", params: { artifact: name } });
+    router.navigate({ to: "/$artifact", params: { artifact: name }, search: {} });
   }
 
   return (
@@ -50,7 +50,7 @@ function RootLayout() {
         </div>
         {repos.map((r) => {
           const hasEdits = typeof window !== "undefined" && Object.keys(JSON.parse(localStorage.getItem(`art:${r.name}:working`) || "{}")).length > 0;
-          return <Link key={r.name} to="/$artifact" params={{ artifact: r.name }} className="block px-3 py-1 text-[13px] text-[#c9d1d9] no-underline hover:bg-[#161b22] truncate" activeProps={{ className: "block px-3 py-1 text-[13px] text-[#c9d1d9] no-underline bg-[#161b22] truncate" }}>{hasEdits ? "* " : ""}{r.name}</Link>;
+          return <Link key={r.name} to="/$artifact" params={{ artifact: r.name }} search={{}} className="block px-3 py-1 text-[13px] text-[#c9d1d9] no-underline hover:bg-[#161b22] truncate" activeProps={{ className: "block px-3 py-1 text-[13px] text-[#c9d1d9] no-underline bg-[#161b22] truncate" }}>{hasEdits ? "* " : ""}{r.name}</Link>;
         })}
       </div>
       <Outlet />

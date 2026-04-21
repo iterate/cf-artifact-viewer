@@ -8,9 +8,9 @@ import { getTree, getLog, getBlob, commitChanges, restoreCommit } from "~/functi
 
 export const Route = createFileRoute("/$artifact")({
   ssr: false,
-  validateSearch: (search: Record<string, unknown>) => ({
-    commit: (search.commit as string) ?? undefined,
-    file: (search.file as string) ?? undefined,
+  validateSearch: (search: Record<string, unknown>): { commit?: string; file?: string } => ({
+    commit: search.commit as string | undefined,
+    file: search.file as string | undefined,
   }),
   loaderDeps: ({ search }) => ({ commit: search.commit }),
   loader: async ({ params, deps }) => {
