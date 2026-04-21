@@ -105,8 +105,27 @@ function ArtifactView() {
   return (
     <>
       <div className="w-[220px] border-r border-[#30363d] overflow-auto shrink-0">
-        <h3 className="px-3 py-2 text-[11px] uppercase tracking-wide text-[#8b949e]">Files</h3>
-        <FileTree nodes={treeNodes} depth={0} selected={file} dirty={isHead ? dirty : undefined} expanded={expanded}
+        <div className="flex items-center justify-between px-3 py-2">
+          <h3 className="text-[11px] uppercase tracking-wide text-[#8b949e]">Files</h3>
+          {isHead && <div className="flex gap-1">
+            <button className="text-[#8b949e] hover:text-blue-400 text-xs cursor-pointer" title="New file" onClick={() => {
+              const name = prompt("File path (e.g. src/index.ts):");
+              if (!name?.trim()) return;
+              setWorking((w) => ({ ...w, [name.trim()]: "" }));
+              setHead((h) => ({ ...h })); // trigger dirty detection
+              navigate({ search: { file: name.trim() } });
+            }}>📄+</button>
+            <button className="text-[#8b949e] hover:text-blue-400 text-xs cursor-pointer" title="New folder" onClick={() => {
+              const name = prompt("Folder path (e.g. src/utils):");
+              if (!name?.trim()) return;
+              const path = name.trim().replace(/\/$/, "") + "/.gitkeep";
+              setWorking((w) => ({ ...w, [path]: "" }));
+              setExpanded((prev) => new Set([...prev, name.trim().replace(/\/$/, "")]));
+              navigate({ search: { file: path } });
+            }}>📁+</button>
+          </div>}
+        </div>
+        <FileTree nodes={buildTree([...tree, ...Object.keys(working).filter((k) => !tree.includes(k))])} depth={0} selected={file} dirty={isHead ? dirty : undefined} expanded={expanded}
           onSelect={(path) => navigate({ search: { commit: selectedCommit, file: path } })}
           onToggle={(path) => setExpanded((prev) => { const next = new Set(prev); next.has(path) ? next.delete(path) : next.add(path); return next; })} />
       </div>
