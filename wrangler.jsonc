@@ -1,7 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "artifacts-jonas",
-  "routes": [{ "pattern": "artifacts.iterate-dev-jonas.com", "custom_domain": true }],
+  "name": "cf-artifact-viewer",
   "account_id": "cc7f6f461fbe823c199da2b27f9e0ff3",
   "compatibility_date": "2026-04-20",
   "compatibility_flags": ["nodejs_compat"],
