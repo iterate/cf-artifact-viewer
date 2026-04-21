@@ -1,14 +1,10 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "artifact-viewer",
-  // TanStack Start provides the server entry — https://tanstack.com/start/latest/docs/framework/react/hosting#cloudflare
-  "main": "@tanstack/react-start/server-entry",
-  "compatibility_date": "2026-04-20",
+  "name": "artifact-viewer-v2",
+  "compatibility_date": "2025-09-24",
   "compatibility_flags": ["nodejs_compat"],
-  "artifacts": [{ "binding": "ARTIFACTS", "namespace": "default" }],
-  "observability": { "enabled": true },
+  "main": "@tanstack/react-start/server-entry",
   "vars": {
-    "CF_ACCOUNT_ID": "",
-    "ARTIFACTS_NAMESPACE": "default"
+    "CF_ACCOUNT_ID": "cc7f6f461fbe823c199da2b27f9e0ff3"
   }
 }

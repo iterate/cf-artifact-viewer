@@ -1,62 +1,68 @@
-# cf-artifact-viewer
+# TanStack Start - Cloudflare Example
 
-A minimal browser + editor for [Cloudflare Artifacts](https://developers.cloudflare.com/artifacts/) repos. Built with [TanStack Start](https://tanstack.com/start) on Cloudflare Workers.
+A TanStack Start example demonstrating deployment to Cloudflare Workers.
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/iterate/cf-artifact-viewer)
+- [TanStack Router Docs](https://tanstack.com/router)
+- [Cloudflare Workers Documentation](https://developers.cloudflare.com/workers/)
 
-## Features
+## Start a new project based on this example
 
-- Browse Artifacts repos, file trees with expand/collapse folders + emoji icons
-- CodeMirror 6 editor with syntax highlighting (150+ languages)
-- Full commit history — browse any commit's file tree (read-only)
-- Restore old commits (O(1) via git tree reuse)
-- Edit files at HEAD with local changes tracked in localStorage
-- TanStack Start server functions for all git operations
-- Route loaders with `pendingComponent` (no empty states)
+To start a new project based on this example, run:
 
-## Setup
-
-```bash
-npm install
+```sh
+npx gitpick TanStack/router/tree/main/examples/react/start-basic-cloudflare start-basic-cloudflare
 ```
 
-Set your Cloudflare account ID in `wrangler.jsonc`:
+## Getting Started
 
-```jsonc
-"vars": {
-  "CF_ACCOUNT_ID": "your-account-id-here"
-}
+From your terminal:
+
+```sh
+pnpm install
+pnpm dev
 ```
 
-You must have the [Artifacts private beta](https://developers.cloudflare.com/artifacts/) enabled on your account.
+This starts your app in development mode, rebuilding assets on file changes.
 
-## Development
+## Build
 
-```bash
-npm run dev
+To build the app for production:
+
+```sh
+pnpm build
 ```
 
-## Deploy
+## Preview
 
-```bash
-npm run deploy
+To preview the production build locally:
+
+```sh
+pnpm preview
 ```
 
-Or connect the repo to [Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/) for automatic deploys on push.
+## Deploy to Cloudflare
 
-## Stack
+To deploy your app to Cloudflare Workers:
 
-- [TanStack Start](https://tanstack.com/start) — full-stack React framework with server functions
-- [TanStack Router](https://tanstack.com/router) — file-based routing with loaders
-- [CodeMirror 6](https://codemirror.net) via [@uiw/react-codemirror](https://uiwjs.github.io/react-codemirror/)
-- [isomorphic-git](https://isomorphic-git.org) — git operations in the Worker
-- [Cloudflare Artifacts](https://developers.cloudflare.com/artifacts/) binding
-- [Tailwind CSS v4](https://tailwindcss.com) from CDN
+```sh
+pnpm run deploy
+```
 
-## Architecture
+## Accessing Cloudflare Bindings
 
-All git operations are [TanStack Start server functions](https://tanstack.com/start/latest/docs/framework/react/server-functions) in `src/functions/git.ts`. They run server-side in the Cloudflare Worker and access the Artifacts binding via `import { env } from "cloudflare:workers"`. Route loaders call server functions directly — no REST API layer.
+You can access Cloudflare bindings in server functions by using importable `env`:
 
-## License
+```ts
+import { env } from 'cloudflare:workers'
+```
 
-MIT
+See `src/routes/index.tsx` for an example.
+
+## Cloudflare Configuration
+
+This example includes:
+
+- Wrangler configuration for Cloudflare Workers
+- Type generation for Cloudflare bindings
+- Server-side rendering on the edge
+- Access to Cloudflare platform features (KV, D1, R2, etc.)

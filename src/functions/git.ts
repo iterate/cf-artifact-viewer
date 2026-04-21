@@ -1,29 +1,17 @@
-/**
- * Server functions for git operations on Cloudflare Artifacts repos.
- *
- * These run server-side in the Cloudflare Worker. Module-level caches
- * (repoCache, cloneInFlight, deepened) persist across requests in the same isolate.
- *
- * https://tanstack.com/start/latest/docs/framework/react/server-functions
- * https://isomorphic-git.org/docs/en
- */
+/** Server functions for git operations on Cloudflare Artifacts repos. */
 import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
 import git from "isomorphic-git";
 import http from "isomorphic-git/http/web";
-import { MemoryFS } from "./memfs.ts";
+import { MemoryFS } from "./memfs";
 
-// --- Server functions (the public API) ---
-
-export const listRepos = createServerFn().handler(async () => {
-  return artifacts().list();
-});
+export const listRepos = createServerFn().handler(async () => (env as any).ARTIFACTS.list());
 
 export const createRepo = createServerFn({ method: "POST" })
   .validator((d: { name: string }) => d)
   .handler(async ({ data }) => {
-    const result = await artifacts().create(data.name);
-    return { name: result.name, remote: result.remote };
+    const r = await (env as any).ARTIFACTS.create(data.name);
+    return { name: r.name, remote: r.remote };
   });
 
 export const getTree = createServerFn()
@@ -31,10 +19,8 @@ export const getTree = createServerFn()
   .handler(async ({ data }) => {
     const { fs, dir } = data.oid ? await ensureDeepened(data.repo) : await ensureCloned(data.repo);
     const paths: string[] = [];
-    await git.walk({
-      fs: fs.promises, dir, trees: [git.TREE({ ref: data.oid || "HEAD" })],
-      map: async (filepath, [entry]) => { if (filepath !== "." && entry) paths.push(filepath); return filepath; },
-    });
+    await git.walk({ fs: fs.promises, dir, trees: [git.TREE({ ref: data.oid || "HEAD" })],
+      map: async (filepath, [entry]) => { if (filepath !== "." && entry) paths.push(filepath); return filepath; } });
     return paths.sort();
   });
 
@@ -42,10 +28,7 @@ export const getBlob = createServerFn()
   .validator((d: { repo: string; path: string; oid?: string }) => d)
   .handler(async ({ data }) => {
     const { fs, dir } = await ensureCloned(data.repo);
-    if (data.oid) {
-      const { blob } = await git.readBlob({ fs: fs.promises, dir, oid: data.oid, filepath: data.path });
-      return new TextDecoder().decode(blob);
-    }
+    if (data.oid) { const { blob } = await git.readBlob({ fs: fs.promises, dir, oid: data.oid, filepath: data.path }); return new TextDecoder().decode(blob); }
     return fs.promises.readFile(`${dir}/${data.path}`, { encoding: "utf8" }) as Promise<string>;
   });
 
@@ -53,8 +36,7 @@ export const getLog = createServerFn()
   .validator((d: { repo: string }) => d)
   .handler(async ({ data }) => {
     const { fs, dir } = await ensureDeepened(data.repo);
-    const commits = await git.log({ fs: fs.promises, dir, depth: 50 });
-    return commits.map((c) => ({
+    return (await git.log({ fs: fs.promises, dir, depth: 50 })).map((c) => ({
       oid: c.oid, message: c.commit.message, author: c.commit.author.name, timestamp: c.commit.author.timestamp,
     }));
   });
@@ -63,15 +45,11 @@ export const commitChanges = createServerFn({ method: "POST" })
   .validator((d: { repo: string; message: string; files: { path: string; content: string }[] }) => d)
   .handler(async ({ data }) => {
     const { fs, dir, token } = await ensureCloned(data.repo);
-    for (const f of data.files) {
-      await fs.promises.writeFile(`${dir}/${f.path}`, f.content);
-      await git.add({ fs: fs.promises, dir, filepath: f.path });
-    }
+    for (const f of data.files) { await fs.promises.writeFile(`${dir}/${f.path}`, f.content); await git.add({ fs: fs.promises, dir, filepath: f.path }); }
     await git.commit({ fs: fs.promises, dir, message: data.message, author: { name: "Artifacts", email: "artifacts@iterate.com" } });
     await git.push({ fs: fs.promises, http, dir, remote: "origin", onAuth: () => ({ username: "x", password: token }) });
   });
 
-// O(1) restore via tree reuse — https://isomorphic-git.org/docs/en/commit
 export const restoreCommit = createServerFn({ method: "POST" })
   .validator((d: { repo: string; oid: string }) => d)
   .handler(async ({ data }) => {
@@ -84,11 +62,6 @@ export const restoreCommit = createServerFn({ method: "POST" })
   });
 
 // --- Helpers ---
-
-function artifacts() {
-  return (env as unknown as { ARTIFACTS: { list(): Promise<{ repos: { name: string }[] }>; create(name: string): Promise<{ name: string; remote: string; token: string }> } }).ARTIFACTS;
-}
-
 const repoCache = new Map<string, { fs: MemoryFS; dir: string; remote: string; token: string }>();
 const cloneInFlight = new Map<string, Promise<{ fs: MemoryFS; dir: string; remote: string; token: string }>>();
 const deepened = new Set<string>();
@@ -97,7 +70,7 @@ async function ensureCloned(name: string) {
   if (repoCache.has(name)) return repoCache.get(name)!;
   if (cloneInFlight.has(name)) return cloneInFlight.get(name)!;
   const promise = (async () => {
-    const e = env as unknown as { CF_ACCOUNT_ID: string; ARTIFACTS_NAMESPACE: string; ARTIFACTS: { get(n: string): Promise<{ createToken(s?: string, t?: number): Promise<{ plaintext: string }> }> } };
+    const e = env as any;
     const repo = await e.ARTIFACTS.get(name);
     const remote = `https://${e.CF_ACCOUNT_ID}.artifacts.cloudflare.net/git/${e.ARTIFACTS_NAMESPACE}/${name}.git`;
     const { plaintext: token } = await repo.createToken("write", 3600);
@@ -106,8 +79,7 @@ async function ensureCloned(name: string) {
     const dir = `/${name}`;
     await git.clone({ fs: fs.promises, http, dir, url: remote, onAuth: () => ({ username: "x", password: tokenSecret }), singleBranch: true, depth: 1 });
     const ctx = { fs, dir, remote, token: tokenSecret };
-    repoCache.set(name, ctx);
-    cloneInFlight.delete(name);
+    repoCache.set(name, ctx); cloneInFlight.delete(name);
     return ctx;
   })();
   cloneInFlight.set(name, promise);
