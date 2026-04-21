@@ -5,9 +5,5 @@
   "compatibility_flags": ["nodejs_compat"],
   "main": "@tanstack/react-start/server-entry",
   "artifacts": [{ "binding": "ARTIFACTS", "namespace": "default" }],
-  "observability": { "enabled": true },
-  "vars": {
-    "CF_ACCOUNT_ID": "",
-    "ARTIFACTS_NAMESPACE": "default"
-  }
+  "observability": { "enabled": true }
 }

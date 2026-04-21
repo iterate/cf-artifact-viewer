@@ -1,5 +1,10 @@
 /**
  * Server functions for git operations on Cloudflare Artifacts repos.
+ *
+ * Requires CF_ACCOUNT_ID env var — the Artifacts binding doesn't expose the
+ * git remote URL on get(), only on create(). We need the account ID to
+ * construct: https://<account>.artifacts.cloudflare.net/git/<ns>/<name>.git
+ *
  * https://tanstack.com/start/latest/docs/framework/react/server-functions
  */
 import { createServerFn } from "@tanstack/react-start";
@@ -67,7 +72,6 @@ export const commitChanges = createServerFn({ method: "POST" })
     await git.push({ ...ctx.git, http, remote: "origin", onAuth: () => ({ username: "x", password: ctx.token }) });
   });
 
-// O(1) restore via tree reuse — https://isomorphic-git.org/docs/en/commit
 export const restoreCommit = createServerFn({ method: "POST" })
   .inputValidator((d: { repo: string; oid: string }) => d)
   .handler(async ({ data }) => {
@@ -86,6 +90,10 @@ type RepoCtx = { fs: MemoryFS; dir: string; token: string; git: { fs: any; dir: 
 const repoCache = new Map<string, Promise<RepoCtx>>();
 const fetchedDepth = new Map<string, number>();
 
+function remoteUrl(name: string) {
+  return `https://${(env as any).CF_ACCOUNT_ID}.artifacts.cloudflare.net/git/default/${name}.git`;
+}
+
 async function ensureRepo(name: string, depth = 1) {
   if (!repoCache.has(name)) repoCache.set(name, initRepo(name));
   const ctx = await repoCache.get(name)!;
@@ -98,7 +106,7 @@ async function ensureRepo(name: string, depth = 1) {
 
 async function initRepo(name: string): Promise<RepoCtx> {
   const repo = await artifacts().get(name);
-  const remote = `https://${(env as any).CF_ACCOUNT_ID}.artifacts.cloudflare.net/git/${(env as any).ARTIFACTS_NAMESPACE}/${name}.git`;
+  const remote = remoteUrl(name);
   const token = (await repo.createToken("write", 3600)).plaintext.split("?")[0];
   const fs = new MemoryFS();
   const dir = `/${name}`;
