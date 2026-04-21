@@ -14,11 +14,15 @@ export const Route = createFileRoute("/$artifact")({
   }),
   loaderDeps: ({ search }) => ({ commit: search.commit }),
   loader: async ({ params, deps }) => {
-    const [commits, tree] = await Promise.all([
-      getLog({ data: { repo: params.artifact } }),
-      getTree({ data: { repo: params.artifact, oid: deps.commit } }),
-    ]);
-    return { commits, tree };
+    try {
+      const [commits, tree] = await Promise.all([
+        getLog({ data: { repo: params.artifact } }),
+        getTree({ data: { repo: params.artifact, oid: deps.commit } }),
+      ]);
+      return { commits: commits ?? [], tree: tree ?? [] };
+    } catch {
+      return { commits: [], tree: [] };
+    }
   },
   pendingComponent: () => <div className="flex-1 flex items-center justify-center text-[#8b949e]">Loading repository...</div>,
   errorComponent: ({ error }) => <div className="flex-1 flex items-center justify-center text-red-400">Failed to load: {error.message}</div>,
@@ -43,10 +47,10 @@ function ArtifactView() {
   const [busy, setBusy] = useState("");
   const [langExt, setLangExt] = useState<import("@codemirror/state").Extension[]>([]);
 
-  const treeNodes = useMemo(() => buildTree(tree), [tree]);
+  const treeNodes = buildTree(tree);
   const [expanded, setExpanded] = useState<Set<string>>(() => expandToFile(file));
   useEffect(() => { if (file) setExpanded((prev) => new Set([...prev, ...expandToFile(file)])); }, [file]);
-  const dirty = useMemo(() => new Set(Object.keys(working).filter((p) => working[p] !== head[p])), [working, head]);
+  const dirty = new Set(Object.keys(working).filter((p) => working[p] !== head[p]));
   const hasLocalChanges = isHead && dirty.size > 0;
   const fileLoading = !!file && fileContent === undefined && !head[file!];
 
@@ -79,23 +83,23 @@ function ArtifactView() {
   const extensions = useMemo(() => { const exts = [...langExt]; if (!isHead) exts.push(EditorView.editable.of(false)); return exts; }, [isHead, langExt]);
   const editorValue = isHead && file && working[file] !== undefined ? working[file] : fileContent;
 
-  function nav(search: { commit?: string; file?: string }) { navigate({ search }); }
-
-  async function handleCommit() {
-    if (dirty.size === 0 || !commitMsg.trim()) return;
-    setBusy("Committing...");
-    await commitChanges({ data: { repo: artifact, message: commitMsg, files: [...dirty].map((p) => ({ path: p, content: working[p] })) } });
+  async function resetAndReload() {
     localStorage.removeItem(`art:${artifact}:working`);
     setCommitMsg(""); setWorking({}); setHead({}); setBusy("");
     await router.invalidate();
   }
 
+  async function handleCommit() {
+    if (dirty.size === 0 || !commitMsg.trim()) return;
+    setBusy("Committing...");
+    await commitChanges({ data: { repo: artifact, message: commitMsg, files: [...dirty].map((p) => ({ path: p, content: working[p] })) } });
+    await resetAndReload();
+  }
+
   async function handleRestore(oid: string) {
     setBusy("Restoring...");
     await restoreCommit({ data: { repo: artifact, oid } });
-    localStorage.removeItem(`art:${artifact}:working`);
-    setWorking({}); setHead({}); setBusy("");
-    await router.invalidate();
+    await resetAndReload();
   }
 
   return (
@@ -103,7 +107,7 @@ function ArtifactView() {
       <div className="w-[220px] border-r border-[#30363d] overflow-auto shrink-0">
         <h3 className="px-3 py-2 text-[11px] uppercase tracking-wide text-[#8b949e]">Files</h3>
         <FileTree nodes={treeNodes} depth={0} selected={file} dirty={isHead ? dirty : undefined} expanded={expanded}
-          onSelect={(path) => nav({ commit: selectedCommit, file: path })}
+          onSelect={(path) => navigate({ search: { commit: selectedCommit, file: path } })}
           onToggle={(path) => setExpanded((prev) => { const next = new Set(prev); next.has(path) ? next.delete(path) : next.add(path); return next; })} />
       </div>
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
@@ -124,7 +128,7 @@ function ArtifactView() {
           <input className="w-full bg-[#0d1117] text-[#c9d1d9] border border-[#30363d] rounded px-2 py-1 text-[13px] mb-1.5 outline-none focus:border-blue-500" placeholder="Commit message" value={commitMsg} onChange={(e) => setCommitMsg(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCommit()} />
           <button className="w-full bg-green-700 hover:bg-green-600 text-white border-none rounded-md py-1.5 px-3 cursor-pointer text-[13px] disabled:opacity-50" onClick={handleCommit} disabled={!commitMsg.trim()}>Commit &amp; push {dirty.size} file{dirty.size !== 1 ? "s" : ""}</button>
         </div>}
-        {hasLocalChanges && <div onClick={() => nav({ file })} className="px-3 py-2 border-b border-[#21262d] bg-[#161b22] border-l-[3px] border-l-orange-400 cursor-pointer">
+        {hasLocalChanges && <div onClick={() => navigate({ search: { file } })} className="px-3 py-2 border-b border-[#21262d] bg-[#161b22] border-l-[3px] border-l-orange-400 cursor-pointer">
           <div className="text-orange-400 font-semibold">Local changes</div>
           <div className="text-[#8b949e] text-[11px]">{dirty.size} modified file{dirty.size !== 1 ? "s" : ""}</div>
         </div>}
@@ -132,7 +136,7 @@ function ArtifactView() {
           const isLatest = i === 0;
           const isActive = selectedCommit === c.oid || (isHead && i === 0 && !hasLocalChanges);
           return <div key={c.oid} className={`px-3 py-2 border-b border-[#21262d] ${isActive ? "bg-[#161b22]" : ""}`}>
-            <div onClick={() => nav({ commit: isLatest ? undefined : c.oid, file })} className="cursor-pointer">
+            <div onClick={() => navigate({ search: { commit: isLatest ? undefined : c.oid, file } })} className="cursor-pointer">
               <div className="text-[#c9d1d9] truncate">{isLatest && "HEAD — "}{c.message.split("\n")[0]}</div>
               <div className="text-[#8b949e] text-[11px] mt-0.5">{c.oid.slice(0, 7)} &middot; {c.author} &middot; {new Date(c.timestamp * 1000).toLocaleDateString()}</div>
             </div>

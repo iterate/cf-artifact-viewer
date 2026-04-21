@@ -89,7 +89,7 @@ const fetchedDepth = new Map<string, number>();
 async function ensureRepo(name: string, depth = 1) {
   if (!repoCache.has(name)) repoCache.set(name, initRepo(name));
   const ctx = await repoCache.get(name)!;
-  if (depth > 1 && (fetchedDepth.get(name) ?? 1) < depth) {
+  if (depth > 1 && ctx.hasCommits && (fetchedDepth.get(name) ?? 1) < depth) {
     await git.fetch({ ...ctx.git, http, depth, relative: true, onAuth: () => ({ username: "x", password: ctx.token }) });
     fetchedDepth.set(name, depth);
   }
