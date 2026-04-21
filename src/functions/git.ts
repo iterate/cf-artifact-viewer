@@ -105,8 +105,6 @@ async function ensureRepo(name: string, depth = 1) {
 
 async function initRepo(name: string) {
   const repo = await env.ARTIFACTS.get(name);
-  // The binding's .remote is not accessible via RPC in TanStack Start server functions.
-  // Construct the URL from CF_ACCOUNT_ID env var instead.
   const remote = `https://${(env as any).CF_ACCOUNT_ID}.artifacts.cloudflare.net/git/default/${name}.git`;
   const token = (await repo.createToken("write", 3600)).plaintext;
   const fs = new MemoryFS();
@@ -116,7 +114,8 @@ async function initRepo(name: string) {
   try {
     await git.clone({ ...gitOpts, http, url: remote, onAuth: () => ({ username: "x", password: token }), singleBranch: true, depth: 1 });
   } catch (err: any) {
-    if (!/Could not find refs?\/heads/.test(err?.message ?? "")) throw err;
+    // Empty repo — clone fails because there are no refs yet
+    if (!/Could not find|HttpError|empty/.test(err?.message ?? "")) throw err;
     hasCommits = false;
     await git.init({ ...gitOpts, defaultBranch: "main" });
     await git.addRemote({ ...gitOpts, remote: "origin", url: remote });

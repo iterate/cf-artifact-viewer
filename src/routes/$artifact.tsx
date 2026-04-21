@@ -13,11 +13,16 @@ export const Route = createFileRoute("/$artifact")({
   }),
   loaderDeps: ({ search }) => ({ commit: search.commit }),
   loader: async ({ params, deps }) => {
-    const [commits, tree] = await Promise.all([
-      getLog({ data: { repo: params.artifact } }),
-      getTree({ data: { repo: params.artifact, oid: deps.commit } }),
-    ]);
-    return { commits: commits ?? [], tree: tree ?? [] };
+    try {
+      const [commits, tree] = await Promise.all([
+        getLog({ data: { repo: params.artifact } }),
+        getTree({ data: { repo: params.artifact, oid: deps.commit } }),
+      ]);
+      return { commits: commits ?? [], tree: tree ?? [] };
+    } catch {
+      // Empty/new repos throw — show empty state instead of error
+      return { commits: [], tree: [] };
+    }
   },
   pendingComponent: () => <div className="flex-1 flex items-center justify-center text-[#8b949e]">Loading repository...</div>,
   errorComponent: ({ error }) => <div className="flex-1 flex items-center justify-center text-red-400">Failed to load: {error.message}</div>,
