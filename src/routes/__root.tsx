@@ -48,9 +48,10 @@ function RootLayout() {
           <input className="bg-[#0d1117] text-[#c9d1d9] border border-[#30363d] rounded px-2 py-1 text-[13px] flex-1 min-w-0 outline-none focus:border-blue-500" placeholder="new repo" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreate()} />
           <button className="bg-transparent text-blue-400 border border-[#30363d] rounded px-2 py-0.5 cursor-pointer text-xs hover:bg-[#161b22] shrink-0" onClick={handleCreate}>+</button>
         </div>
-        {repos.map((r) => (
-          <Link key={r.name} to="/$artifact" params={{ artifact: r.name }} className="block px-3 py-1 text-[13px] text-[#c9d1d9] no-underline hover:bg-[#161b22] truncate" activeProps={{ className: "block px-3 py-1 text-[13px] text-[#c9d1d9] no-underline bg-[#161b22] truncate" }}>{r.name}</Link>
-        ))}
+        {repos.map((r) => {
+          const hasEdits = typeof window !== "undefined" && Object.keys(JSON.parse(localStorage.getItem(`art:${r.name}:working`) || "{}")).length > 0;
+          return <Link key={r.name} to="/$artifact" params={{ artifact: r.name }} className="block px-3 py-1 text-[13px] text-[#c9d1d9] no-underline hover:bg-[#161b22] truncate" activeProps={{ className: "block px-3 py-1 text-[13px] text-[#c9d1d9] no-underline bg-[#161b22] truncate" }}>{hasEdits ? "* " : ""}{r.name}</Link>;
+        })}
       </div>
       <Outlet />
     </div>

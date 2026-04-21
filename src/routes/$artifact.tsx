@@ -52,17 +52,18 @@ function ArtifactView() {
   useEffect(() => { if (file) setExpanded((prev) => new Set([...prev, ...expandToFile(file)])); }, [file]);
   const dirty = new Set(Object.keys(working).filter((p) => working[p] !== head[p]));
   const hasLocalChanges = isHead && dirty.size > 0;
-  const fileLoading = !!file && fileContent === undefined && !head[file!];
+  const isNewFile = !!file && file in working && !(file in head);
+  const fileLoading = !!file && !isNewFile && fileContent === undefined && !(file in head);
 
   // Reset on artifact change
   useEffect(() => { setHead({}); setWorking(JSON.parse(localStorage.getItem(`art:${artifact}:working`) || "{}")); setFileContent(undefined); }, [artifact]);
   // Persist working edits
   useEffect(() => { if (isHead) localStorage.setItem(`art:${artifact}:working`, JSON.stringify(working)); }, [artifact, working, isHead]);
 
-  // Load file content via server function
+  // Load file content via server function (skip for locally-created files)
   useEffect(() => {
     setFileContent(undefined);
-    if (!file) return;
+    if (!file || (file in working && !(file in head))) return;
     let cancelled = false;
     getBlob({ data: { repo: artifact, path: file, oid: selectedCommit } }).then((content) => {
       if (cancelled) return;
@@ -147,9 +148,18 @@ function ArtifactView() {
           <input className="w-full bg-[#0d1117] text-[#c9d1d9] border border-[#30363d] rounded px-2 py-1 text-[13px] mb-1.5 outline-none focus:border-blue-500" placeholder="Commit message" value={commitMsg} onChange={(e) => setCommitMsg(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCommit()} />
           <button className="w-full bg-green-700 hover:bg-green-600 text-white border-none rounded-md py-1.5 px-3 cursor-pointer text-[13px] disabled:opacity-50" onClick={handleCommit} disabled={!commitMsg.trim()}>Commit &amp; push {dirty.size} file{dirty.size !== 1 ? "s" : ""}</button>
         </div>}
-        {hasLocalChanges && <div onClick={() => navigate({ search: { file } })} className="px-3 py-2 border-b border-[#21262d] bg-[#161b22] border-l-[3px] border-l-orange-400 cursor-pointer">
-          <div className="text-orange-400 font-semibold">Local changes</div>
-          <div className="text-[#8b949e] text-[11px]">{dirty.size} modified file{dirty.size !== 1 ? "s" : ""}</div>
+        {hasLocalChanges && <div className="px-3 py-2 border-b border-[#21262d] bg-[#161b22] border-l-[3px] border-l-orange-400">
+          <div className="flex items-center justify-between">
+            <div onClick={() => navigate({ search: { file } })} className="cursor-pointer">
+              <div className="text-orange-400 font-semibold">Local changes</div>
+              <div className="text-[#8b949e] text-[11px]">{dirty.size} modified file{dirty.size !== 1 ? "s" : ""}</div>
+            </div>
+            <button className="text-[#8b949e] hover:text-red-400 text-xs cursor-pointer" title="Discard all local changes" onClick={() => {
+              if (!confirm("Discard all local changes?")) return;
+              localStorage.removeItem(`art:${artifact}:working`);
+              setWorking({}); setHead({}); setFileContent(undefined);
+            }}>✕</button>
+          </div>
         </div>}
         {commits.map((c: { oid: string; message: string; author: string; timestamp: number }, i: number) => {
           const isLatest = i === 0;
