@@ -1,131 +1,55 @@
 /// <reference types="vite/client" />
-import {
-  HeadContent,
-  Link,
-  Scripts,
-  createRootRoute,
-} from '@tanstack/react-router'
-import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
-import * as React from 'react'
-import { DefaultCatchBoundary } from '~/components/DefaultCatchBoundary'
-import { NotFound } from '~/components/NotFound'
-import appCss from '~/styles/app.css?url'
-import { seo } from '~/utils/seo'
+import { createRootRoute, HeadContent, Link, Scripts, useRouter, useRouterState } from "@tanstack/react-router";
+import * as React from "react";
+import { useState, useEffect } from "react";
+import { listRepos, createRepo } from "~/functions/git";
 
 export const Route = createRootRoute({
   head: () => ({
-    meta: [
-      {
-        charSet: 'utf-8',
-      },
-      {
-        name: 'viewport',
-        content: 'width=device-width, initial-scale=1',
-      },
-      ...seo({
-        title:
-          'TanStack Start | Type-Safe, Client-First, Full-Stack React Framework',
-        description: `TanStack Start is a type-safe, client-first, full-stack React framework. `,
-      }),
-    ],
-    links: [
-      { rel: 'stylesheet', href: appCss },
-      {
-        rel: 'apple-touch-icon',
-        sizes: '180x180',
-        href: '/apple-touch-icon.png',
-      },
-      {
-        rel: 'icon',
-        type: 'image/png',
-        sizes: '32x32',
-        href: '/favicon-32x32.png',
-      },
-      {
-        rel: 'icon',
-        type: 'image/png',
-        sizes: '16x16',
-        href: '/favicon-16x16.png',
-      },
-      { rel: 'manifest', href: '/site.webmanifest', color: '#fffff' },
-      { rel: 'icon', href: '/favicon.ico' },
-    ],
-    scripts: [
-      {
-        src: '/customScript.js',
-        type: 'text/javascript',
-      },
-    ],
+    meta: [{ charSet: "utf-8" }, { name: "viewport", content: "width=device-width, initial-scale=1" }, { title: "Artifacts" }],
+    scripts: [{ src: "https://cdn.tailwindcss.com?plugins=" }],
   }),
-  errorComponent: DefaultCatchBoundary,
-  notFoundComponent: () => <NotFound />,
-  shellComponent: RootDocument,
-})
+  shellComponent: RootShell,
+});
 
-function RootDocument({ children }: { children: React.ReactNode }) {
+function RootShell({ children }: { children: React.ReactNode }) {
+  const [repos, setRepos] = useState<{ name: string }[]>([]);
+  const [newName, setNewName] = useState("");
+  const router = useRouter();
+  const isLoading = useRouterState({ select: (s) => s.isLoading });
+
+  useEffect(() => { listRepos().then((d) => setRepos(d?.repos ?? [])).catch(() => {}); }, []);
+
+  async function handleCreate() {
+    if (!newName.trim()) return;
+    const name = newName.trim();
+    await createRepo({ data: { name } });
+    setNewName("");
+    const updated = await listRepos();
+    setRepos(updated?.repos ?? []);
+    router.navigate({ to: "/$artifact", params: { artifact: name } });
+  }
+
   return (
-    <html>
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        <div className="p-2 flex gap-2 text-lg">
-          <Link
-            to="/"
-            activeProps={{
-              className: 'font-bold',
-            }}
-            activeOptions={{ exact: true }}
-          >
-            Home
-          </Link>{' '}
-          <Link
-            to="/posts"
-            activeProps={{
-              className: 'font-bold',
-            }}
-          >
-            Posts
-          </Link>{' '}
-          <Link
-            to="/users"
-            activeProps={{
-              className: 'font-bold',
-            }}
-          >
-            Users
-          </Link>{' '}
-          <Link
-            to="/route-a"
-            activeProps={{
-              className: 'font-bold',
-            }}
-          >
-            Pathless Layout
-          </Link>{' '}
-          <Link
-            to="/deferred"
-            activeProps={{
-              className: 'font-bold',
-            }}
-          >
-            Deferred
-          </Link>{' '}
-          <Link
-            // @ts-expect-error
-            to="/this-route-does-not-exist"
-            activeProps={{
-              className: 'font-bold',
-            }}
-          >
-            This Route Does Not Exist
-          </Link>
+    <html lang="en">
+      <head><HeadContent /><style dangerouslySetInnerHTML={{ __html: "body{margin:0}" }} /></head>
+      <body className="bg-[#0d1117] text-[#c9d1d9] font-mono">
+        <div className="flex h-screen">
+          {isLoading && <div className="fixed top-0 left-0 right-0 h-0.5 bg-blue-500 z-50" />}
+          <div className="w-[220px] border-r border-[#30363d] flex flex-col overflow-auto shrink-0">
+            <h3 className="px-3 py-2 text-[11px] uppercase tracking-wide text-[#8b949e]">Repos</h3>
+            <div className="px-3 py-1 flex gap-1">
+              <input className="bg-[#0d1117] text-[#c9d1d9] border border-[#30363d] rounded px-2 py-1 text-[13px] flex-1 outline-none focus:border-blue-500" placeholder="new repo" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCreate()} />
+              <button className="bg-transparent text-blue-400 border border-[#30363d] rounded px-2 py-0.5 cursor-pointer text-xs hover:bg-[#161b22]" onClick={handleCreate}>+</button>
+            </div>
+            {repos.map((r) => (
+              <Link key={r.name} to="/$artifact" params={{ artifact: r.name }} className="block px-3 py-1 text-[13px] text-[#c9d1d9] no-underline hover:bg-[#161b22] truncate" activeProps={{ className: "block px-3 py-1 text-[13px] text-[#c9d1d9] no-underline bg-[#161b22] truncate" }}>{r.name}</Link>
+            ))}
+          </div>
+          {children}
         </div>
-        <hr />
-        {children}
-        <TanStackRouterDevtools position="bottom-right" />
         <Scripts />
       </body>
     </html>
-  )
+  );
 }
