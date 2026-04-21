@@ -1,14 +1,13 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "cf-artifact-viewer",
-  "account_id": "cc7f6f461fbe823c199da2b27f9e0ff3",
   "compatibility_date": "2026-04-20",
   "compatibility_flags": ["nodejs_compat"],
   "main": "@tanstack/react-start/server-entry",
   "artifacts": [{ "binding": "ARTIFACTS", "namespace": "default" }],
   "observability": { "enabled": true },
   "vars": {
-    "CF_ACCOUNT_ID": "cc7f6f461fbe823c199da2b27f9e0ff3",
+    "CF_ACCOUNT_ID": "",
     "ARTIFACTS_NAMESPACE": "default"
   }
 }
